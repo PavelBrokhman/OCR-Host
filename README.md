@@ -2,38 +2,53 @@
 
 PaddleOCR as a service of its own, the way Ollama is one: its own process, its own Python
 environment, the GPU. AI-Gateway talks to it over HTTP instead of loading PaddleOCR into its own
-process (AI-Gateway `docs/design/connector-and-engine-hosts.md`, Jira GATEWAY-41).
+process (AI-Gateway `docs/design/connector-and-engine-hosts.md`, Jira GATEWAY-41). The Gateway
+reaches it through the profiles `pavlogix-paddle` and `pavlogix-paddle-detect`.
 
-Two kinds of host, each reached by the Gateway through a profile of its own (Pavel, 2026-11-11):
-
-- **PaddleX's ready server** (`paddlex --serve`) - here now. It takes its language when it starts,
-  so a server serves one language; several servers, on this machine or another, are normal.
-- **A host of our own** with the language chosen per request - later; its name is not chosen yet.
-
-## The ready server, measured 2026-11-11
-
-RTX 2070 SUPER, clip `left` of `D:\Projects-Shared\Video\Samples\ocr-logo-left-right\`, its
-subtitle band, 20 frames, `PP-OCRv6_medium` detection and recognition (what `lang=ch` gives):
-
-| | detection | recognition |
-|---|---|---|
-| PaddleOCR in-process, GPU (`measure.py`) | 0.030 s/frame | 0.048 s/frame |
-| PaddleOCR in-process, CPU, same venv | 0.51 s/frame | 1.30 s/frame |
-| the ready server, GPU, HTTP included (`measure_server.py`) | - | 0.062 s/frame |
-
-The server gave the same texts as in-process. Its answer has `rec_texts`, `rec_scores`, `rec_polys`
-and `dt_polys`; it has no detection-only mode, but `dt_polys` of the same answer are the boxes,
-and on the GPU full OCR costs only ~0.02 s/frame more than detection. One server takes about
-1.2 GB of the card.
+The host is **pavlogix-paddle** (`pavlogix_paddle/`): every language PaddleOCR reads, chosen per
+request, and detection on a route of its own. It uses PaddleOCR directly, in its own process;
+PaddleOCR 3.x is built on PaddleX and released in step with it, so PaddleX works underneath as a
+library. Named by the engine, not the function: text goes through PaddleOCR, and other Paddle
+functions (documents, ...) can join it later.
 
 ## Run
 
 ```
-serve.bat LANG [PORT]      e.g. serve.bat ch 8081
+serve_pavlogix.bat [PORT]    default 8090
 ```
 
-`make_config.py` has PaddleOCR export the server's configuration for the language, so which models a
-language needs stays PaddleOCR's table, not a copy here.
+| Route | |
+|---|---|
+| `GET /health` | `{"status": "ok"}` |
+| `GET /info` | versions, and the languages by recognition model: `{"functions": {"ocr": {"models": {"PP-OCRv6_medium_rec": ["ch", "en", "japan", ...], ...}}}}` |
+| `POST /ocr` | `{"image": base64, "language": "ch"}` -> `{"language", "model", "words": [{"text", "confidence", "box"}]}` |
+| `POST /ocr/detect` | `{"image": base64}` -> `{"boxes": [...]}` |
+
+PaddleOCR picks the model by script, not locale: one PP-OCRv6 model reads Chinese, English,
+Japanese and 48 Latin languages; Russian, Korean, Arabic... have their own. PaddleOCR has no
+public list of this, so `languages.py` asks its language sets and its model-picking method, and
+`tests/test_languages.py` fails if an upgrade moves them. An engine is built on first use and kept,
+one per model (ch, en and japan share one), about 1.2 GB of the card each.
+
+Tests: `.venv\Scripts\python.exe -m pytest` (the engines are faked; the language list is real).
+
+## Measured 2026-11-11
+
+RTX 2070 SUPER, clip `left` of `D:\Projects-Shared\Video\Samples\ocr-logo-left-right\`, its
+subtitle band, `PP-OCRv6_medium` detection and recognition (what `lang=ch` gives):
+
+| | detection | recognition |
+|---|---|---|
+| PaddleOCR in-process, GPU (`measure.py`, 20 frames) | 0.030 s/frame | 0.048 s/frame |
+| PaddleOCR in-process, CPU, same venv | 0.51 s/frame | 1.30 s/frame |
+| pavlogix-paddle, GPU, HTTP included, one client | 0.031 s/frame | 0.044 s/frame |
+
+The three sample clips through VideoToSRT and the Gateway: 40 / 30 / 33 s, the same cues as on the
+CPU.
+
+**PaddleX's ready server** (`paddlex --serve`, a pipeline yaml exported by PaddleOCR) was tried
+first and dropped: its language is fixed when it starts, it has no detection-only mode, and it
+says nothing about which model it runs. Recognition through it took 0.062 s/frame.
 
 ## Install
 
@@ -41,6 +56,6 @@ language needs stays PaddleOCR's table, not a copy here.
 install.bat
 ```
 
-Makes `.venv` (Python 3.13) with `paddlepaddle-gpu` from Paddle's own CUDA index, `paddleocr` and
-PaddleX's serving plugin, then runs `check_gpu.py`. The GPU build of Paddle is a separate package
+Makes `.venv` (Python 3.13) with `paddlepaddle-gpu` from Paddle's own CUDA index, `paddleocr`, the
+web server and pytest, then runs `check_gpu.py`. The GPU build of Paddle is a separate package
 from the CPU one on PyPI, one per CUDA version; `install.bat` names the version it takes and why.

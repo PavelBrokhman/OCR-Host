@@ -19,5 +19,5 @@ if not exist .venv (
 .venv\Scripts\python.exe -m pip install --upgrade pip || exit /b 1
 .venv\Scripts\python.exe -m pip install paddlepaddle-gpu==%PADDLE% -i %INDEX% || exit /b 1
 .venv\Scripts\python.exe -m pip install paddleocr==%PADDLEOCR% || exit /b 1
-.venv\Scripts\paddlex.exe --install serving || exit /b 1
+.venv\Scripts\python.exe -m pip install fastapi uvicorn pytest || exit /b 1
 .venv\Scripts\python.exe check_gpu.py
