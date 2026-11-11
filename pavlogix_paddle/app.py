@@ -37,7 +37,8 @@ def _decode(image: str) -> bytes:
         raise HTTPException(400, f"image is not base64: {e}") from e
 
 
-def create_app(catalogue: LanguageCatalogue, engines: Engines, versions: dict) -> FastAPI:
+def create_app(catalogue: LanguageCatalogue, engines: Engines, versions: dict,
+               devices: list[dict]) -> FastAPI:
     app = FastAPI(title="pavlogix-paddle")
 
     @app.get("/health")
@@ -46,7 +47,7 @@ def create_app(catalogue: LanguageCatalogue, engines: Engines, versions: dict) -
 
     @app.get("/info")
     def info():
-        return {"engine": versions,
+        return {"engine": versions, "devices": devices,
                 "functions": {"ocr": {"models": catalogue.models(), "detection": True}}}
 
     @app.post("/ocr")

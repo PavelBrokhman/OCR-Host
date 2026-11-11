@@ -20,7 +20,7 @@ serve_pavlogix.bat [PORT]    default 8090
 | Route | |
 |---|---|
 | `GET /health` | `{"status": "ok"}` |
-| `GET /info` | versions, and the languages by recognition model: `{"functions": {"ocr": {"models": {"PP-OCRv6_medium_rec": ["ch", "en", "japan", ...], ...}}}}` |
+| `GET /info` | versions and the device in use; the devices: `[{"id": "cpu"}, {"id": "gpu:0", "name", "compute", "memory_gb"}]`; the languages by recognition model: `{"functions": {"ocr": {"models": {"PP-OCRv6_medium_rec": ["ch", "en", "japan", ...], ...}}}}` |
 | `POST /ocr` | `{"image": base64, "language": "ch"}` -> `{"language", "model", "words": [{"text", "confidence", "box"}]}` |
 | `POST /ocr/detect` | `{"image": base64}` -> `{"boxes": [...]}` |
 
@@ -29,6 +29,12 @@ Japanese and 48 Latin languages; Russian, Korean, Arabic... have their own. Padd
 public list of this, so `languages.py` asks its language sets and its model-picking method, and
 `tests/test_languages.py` fails if an upgrade moves them. An engine is built on first use and kept,
 one per model (ch, en and japan share one), about 1.2 GB of the card each.
+
+The host runs on the first card Paddle sees, else the CPU (`--device` picks one by hand). The
+devices are the Paddle build's business, not PaddleOCR's: the CPU build sees no card, a
+paddlepaddle-gpu build the cards its CUDA version and the driver allow. Choosing the build to fit
+the machine is for the install, later (Jira GATEWAY-47). The same GPU build runs on the CPU too:
+the three sample clips took 136 / 99 / 106 s there, with the same cues as on the card.
 
 Tests: `.venv\Scripts\python.exe -m pytest` (the engines are faked; the language list is real).
 

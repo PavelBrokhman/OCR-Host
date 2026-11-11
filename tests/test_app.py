@@ -24,10 +24,13 @@ class FakeEngines:
         return [BOX]
 
 
+DEVICES = [{"id": "cpu"}, {"id": "gpu:0", "name": "RTX", "compute": "7.5", "memory_gb": 8.0}]
+
+
 def _client(engines=None):
     catalogue = LanguageCatalogue(list(TABLE), TABLE.get)
-    versions = {"paddleocr": "3.7.0", "paddlex": "3.7.2", "device": "gpu"}
-    return TestClient(create_app(catalogue, engines or FakeEngines(), versions))
+    versions = {"paddleocr": "3.7.0", "paddlex": "3.7.2", "device": "gpu:0"}
+    return TestClient(create_app(catalogue, engines or FakeEngines(), versions, DEVICES))
 
 
 def test_health():
@@ -36,9 +39,13 @@ def test_health():
 
 def test_info_lists_the_languages_under_their_models():
     info = _client().get("/info").json()
-    assert info["engine"] == {"paddleocr": "3.7.0", "paddlex": "3.7.2", "device": "gpu"}
+    assert info["engine"] == {"paddleocr": "3.7.0", "paddlex": "3.7.2", "device": "gpu:0"}
     assert info["functions"]["ocr"]["models"] == {"rec-v6": ["ch", "en"], "rec-eslav": ["ru"]}
     assert info["functions"]["ocr"]["detection"] is True
+
+
+def test_info_lists_the_devices_the_host_can_use():
+    assert _client().get("/info").json()["devices"] == DEVICES
 
 
 def test_ocr_reads_with_the_model_of_the_language():
